@@ -1,5 +1,4 @@
 import sys
-sys.path.append("/home/zrf/dependency_parser/lib64/python3.10/site-packages")
 import os
 import ast
 import astunparse
