@@ -1,12 +1,12 @@
 from peewee import *
 from playhouse.pool import PooledPostgresqlExtDatabase, PostgresqlDatabase, PooledPostgresqlDatabase
 database = PooledPostgresqlDatabase('PyDepResolver', max_connections=16, stale_timeout=300, **{
-                                    'host': '127.0.0.1', 'port': 5432, 'user': 'zrf', 'password': '123456'})
+                                    'host': '127.0.0.1', 'port': 5432, 'user': 'xxx', 'password': 'xxx'})
 
 
 def init_database():
     db = PooledPostgresqlDatabase('PyDepResolver', max_connections=16, stale_timeout=300, **{
-                                  'host': '127.0.0.1', 'port': 5432, 'user': 'zrf', 'password': '123456'})
+                                  'host': '127.0.0.1', 'port': 5432, 'user': 'xxx', 'password': 'xxx'})
     return db
 
 
