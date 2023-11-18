@@ -15,9 +15,9 @@ from typing import (
     Union,
     cast,
 )
+from pip._vendor.resolvelib.structs import DirectedGraph
 from resolvelib import BaseReporter, Resolver
 import resolvelib
-from pip._vendor.resolvelib.structs import DirectedGraph
 from extras_provider import ExtrasProvider
 from sqlclass import *
 from pip._vendor.packaging.requirements import Requirement
@@ -27,8 +27,19 @@ from pip._internal.req.req_install import InstallRequirement
 from platform import python_version
 from pip._vendor.packaging.markers import MARKER_EXPR, Marker
 from operator import attrgetter
+import functools
 import math
-PYTHON_VERSION = Version(python_version())
+import copy
+PYTHON_VERSION = str(Version(python_version()))
+
+# req = Requirement('pydantic!=1.7,!=1.7.1,!=1.7.2,!=1.7.3,!=1.8,!=1.8.1,<2.0.0,>=1.6.2')
+# ver1 = Version("6.0")
+# ver2 = Version("6.0b1")
+# req = Requirement('pydantic(>6.0b1)')
+# for spec in req.specifier:
+#     oper = spec._get_operator(spec.operator)
+#     print(oper(ver1,spec.version))
+
 
 def _has_route_to_root(criteria, key, all_keys, connected):
     if key in connected:
@@ -90,26 +101,50 @@ class Candidate:
         self._dependencies = []
         self.parsed = False
         self.yanked = yanked
-        # self.extra_name = self.name
-        # if self.extras:
-        #     formatted_extras = ",".join(set(self.extras))
-        #     self.name = self.name + f"[{formatted_extras}]"
 
+        # if self.extras:
+        #     formatted_extras = ",".join(sorted(self.extras))
+        #     self.extra_name = self.name + f"[{formatted_extras}]"
+        # else:
+        #     self.extra_name = self.name
 
     def __repr__(self):
         if not self.extras:
             return f"<{self.name}=={self.version}>"
         return f"<{self.name}[{','.join(self.extras)}]=={self.version}>"
 
+    # @property
+    # def metadata(self):
+    #     if self._metadata is None:
+    #         self._metadata = get_metadata_for_wheel(self.url)
+    #     return self._metadata
+
+    # @property
+    # def requires_python(self):
+    #     return self.metadata.get("Requires-Python")
+
+    # def _get_dependencies(self):
+    #     # deps = self.metadata.get_all("Requires-Dist", [])
+    #     extras = self.extras if self.extras else [""]
+
+    #     for r in self.dependency:
+    #         if r.marker is None:
+    #             yield r
+    #         else:
+    #             for e in extras:
+    #                 if r.marker.evaluate({"extra": e}):
+    #                     yield r
+
     @property
     def dependencies(self):
         if self.parsed == False:
-            self.parsed == True
+            self.parsed = True
             for a in self.dependency:
                 # if len(a.extras) != 0:
                 #     a.extras.clear()
                 try:
                     req_instance = Requirement(a)
+                    req_instance.name = canonicalize_name(req_instance.name)
                     # req_instance.extras={}
                     # if req_instance.marker != None and "extra" in str(req_instance.marker._markers):
                     #     continue
@@ -120,16 +155,29 @@ class Candidate:
                     self._dependencies.append(req_instance)
                 else:
                     for extra in self.extras:
-                        if req_instance.marker.evaluate({"extra": extra}):
+                        if req_instance.marker.evaluate({"extra": extra, "python_version": PYTHON_VERSION}):
                             self._dependencies.append(req_instance)
                             continue
-                    if req_instance.marker.evaluate({"extra": "MC_checknomal_None"}):
+                    if req_instance.marker.evaluate({"extra": "MC_checknomal_None", "python_version": PYTHON_VERSION}):
                         self._dependencies.append(req_instance)
 
         # if self._dependencies is None:
         #     self._dependencies = list(self._get_dependencies())
 
         return self._dependencies
+
+
+# def get_metadata_for_wheel(url):
+#     data = requests.get(url).content
+#     with ZipFile(BytesIO(data)) as z:
+#         for n in z.namelist():
+#             if n.endswith(".dist-info/METADATA"):
+#                 p = BytesParser()
+#                 return p.parse(z.open(n), headersonly=True)
+
+#     # If we didn't find the metadata, return an empty dict
+#     return EmailMessage()
+
 
 class PyPIProvider(ExtrasProvider):
     def __init__(self, user_requested):
@@ -155,7 +203,14 @@ class PyPIProvider(ExtrasProvider):
     def get_preference(self, identifier, resolutions, candidates, information, backtrack_causes):
         criterion = list(information[identifier])
         # return sum(1 for _ in candidates[identifier])
-
+    # def get_preference(  # type: ignore
+    #     self,
+    #     identifier: str,
+    #     resolutions: Mapping[str, Candidate],
+    #     candidates: Mapping[str, Iterator[Candidate]],
+    #     information: Mapping[str, Iterable["PreferenceInformation"]],
+    #     backtrack_causes: Sequence["PreferenceInformation"],
+    # ) -> "Preference":
     #     """Produce a sort key for given requirement based on preference.
 
     #     The lower the return value is, the more preferred this group of
@@ -201,8 +256,19 @@ class PyPIProvider(ExtrasProvider):
         self._known_depths[identifier] = inferred_depth
 
         requested_order = self._user_requested.get(identifier, math.inf)
-
+        # HACK: Setuptools have a very long and solid backward compatibility
+        # track record, and extremely few projects would request a narrow,
+        # non-recent version range of it since that would break a lot things.
+        # (Most projects specify it only to request for an installer feature,
+        # which does not work, but that's another topic.) Intentionally
+        # delaying Setuptools helps reduce branches the resolver has to check.
+        # This serves as a temporary fix for issues like "apache-airflow[all]"
+        # while we work on "proper" branch pruning techniques.
         delay_this = identifier == "setuptools"
+
+        # Prefer the causes of backtracking on the assumption that the problem
+        # resolving the dependency tree is related to the failures that caused
+        # the backtracking
 
         return (
             delay_this,
@@ -266,7 +332,7 @@ class PyPIProvider(ExtrasProvider):
                 allowed_candidates.append(candidate)
         candidates = allowed_candidates[:]
         return sorted(candidates, key=attrgetter("version"), reverse=True)
-
+    
     def is_satisfied_by(self, requirement, candidate):
         if canonicalize_name(requirement.name) != canonicalize_name(candidate.name):
             return False
@@ -284,7 +350,7 @@ class PyPIProvider(ExtrasProvider):
 
     def get_project_from_pypi(self, project, extras):
         sql = "select {} from {} where name = '{}' order by version collate en_natural desc;".format(
-            "name, version, dependency, yanked", "projects_metadata", project)
+            "name, version, dependency, yanked", "projects_metadata", canonicalize_name(project))
         q = database.execute_sql(sql)
         all_candidate = []
         for a in q:
@@ -300,9 +366,10 @@ class PyPIProvider(ExtrasProvider):
 
 
 def display_resolution(result):
-    # vnode: set = copy.deepcopy(result.graph._vertices)
-    # vedge: dict = copy.deepcopy(result.graph._forwards)
+    
     graph = _build_result(result)
+    vnode: set = copy.deepcopy(result.graph._vertices)
+    vedge: dict = copy.deepcopy(result.graph._forwards)
     vpin = {}
     if '<Python from Requires-Python>' in graph._vertices:
         graph.remove('<Python from Requires-Python>')
@@ -318,14 +385,36 @@ def display_resolution(result):
             vpin[node] = str(result.mapping[node].version)
         else:
             vpin[node] = ''
+    for key in result.graph._vertices:
+        if key == None:
+            continue
+        if canonicalize_name(key) != key:
+            vpin[canonicalize_name(key)] = vpin[key]
+            vpin.pop(key)
+    for key, value in result.graph._forwards.items():
+        if key == None:
+            continue
+        if canonicalize_name(key) != key:
+            vedge[canonicalize_name(key)] = vedge[key]
+            vedge.pop(key)
+    
+    for key, value in vedge.items():
+        for dep in value:
+            if canonicalize_name(dep) != dep:
+                vedge[canonicalize_name(key)].add(canonicalize_name(dep))
+                vedge[canonicalize_name(key)].remove(dep)   
+    for key, value in vedge.items(): 
+        if key != None and "[" in key:
+            xlist = key.split("[")
+            xlist_name = xlist[0]
+            vedge[key].add(xlist_name)
+    for tmp in vedge[None]:
+        rootnode = tmp
 
-    # for tmp in vedge[None]:
-    #     rootnode = tmp
+    # print("{}\n".format(vpin))
+    # print("{}\n".format(vedge))
 
-    print("{}\n".format(vpin))
-    print("{}\n".format(graph._forwards))
-
-    return vpin, graph._forwards
+    return vpin, vedge
 
 
 class dep_parser:
@@ -347,7 +436,7 @@ class dep_parser:
                 else:
                     if req_instance.marker.evaluate({"extra": "MC_checknomal_None"}):
                         self.requirements.append(req_instance)
-            except:
+            except Exception as e:
                 pass
 
         i = 0
@@ -398,16 +487,15 @@ def main():
     # Kick off the resolution process, and get the final result.
     print("Resolving", ", ".join(reqs))
     result = resolver.resolve(requirements)
-    display_resolution(result)
+    vpin, vedge = display_resolution(result)
+
+    print("{}\n".format(vpin))
+    print("{}\n".format(vedge))
 
 
 if __name__ == "__main__":
     try:
         main()
-        # a = Requirement("pydantic~=1.0")
-        # print(a)
-        # a = dep_parser(['aiobotocore~=2.5.0', 'fsspec==2023.4.0', 'aiohttp!=4.0.0a0,!=4.0.0a1'])
-        # result = a.resolve(200)
-        # print(display_resolution(result))
     except KeyboardInterrupt:
         print()
+

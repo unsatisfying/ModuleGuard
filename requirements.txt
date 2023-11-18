@@ -1,0 +1,8 @@
+requests
+rarfile
+tarfile
+zipfile
+toml
+
+resolvelib
+astunparse==1.6.3
