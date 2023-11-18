@@ -413,7 +413,7 @@ class DepsVisitor(ast.NodeVisitor):
                                 pass
                         elif kwValue.keywords:
                             for kwkeywords in kwValue.keywords:
-                                self.packages_arg[kwkeywords.arg] = self.entity_assign(kwkeywords)
+                                self.packages_arg[kwkeywords.arg] = self.entity_assign(kwkeywords.value)
                     elif isinstance(kwValue,ast.Call) and isinstance(kwValue.func, ast.Attribute) and (kwValue.func.attr == 'find_packages' or kwValue.func.attr == 'find_namespace_packages'):
                         self.packages = kwValue.func.attr
                         self.packages_arg = {}
@@ -444,7 +444,7 @@ class DepsVisitor(ast.NodeVisitor):
                                 pass
                         elif kwValue.keywords:
                             for kwkeywords in kwValue.keywords:
-                                self.namespace_packages_arg[kwkeywords.arg] = self.entity_assign(kwkeywords)
+                                self.namespace_packages_arg[kwkeywords.arg] = self.entity_assign(kwkeywords.value)
                     elif isinstance(kwValue,ast.Call) and isinstance(kwValue.func, ast.Attribute) and (kwValue.func.attr == 'find_packages' or kwValue.func.attr == 'find_namespace_packages'):
                         self.namespace_packages = kwValue.func.attr
                         self.namespace_packages_arg = {}
@@ -457,7 +457,7 @@ class DepsVisitor(ast.NodeVisitor):
                                 pass
                         elif kwValue.keywords:
                             for kwkeywords in kwValue.keywords:
-                                self.namespace_packages_arg[kwkeywords.arg] = self.entity_assign(kwkeywords)
+                                self.namespace_packages_arg[kwkeywords.arg] = self.entity_assign(kwkeywords.value)
                     else:
                         self.assgin(kwValue,self.scope,'@'.join(self.scope_If))
                 elif kw.arg == "py_modules":
@@ -483,26 +483,26 @@ class DepsVisitor(ast.NodeVisitor):
 
 
 
-file_name = './setup.py'
-alldeps = []
-a = DepsVisitor(file_name)
+# file_name = './setup.py'
+# alldeps = []
+# a = DepsVisitor(file_name)
 
-try:
-    tdpes = a.end_dataflow
-    for key in tdpes:
-        if key.from_ == "packages":
-            a.packages.append(key.to_)
-        elif key.from_ == "namespace_packages":
-            a.namespace_packages.append(key.to_)
-        elif key.from_ == "py_modules":
-            a.py_modules.append(key.to_)
-        elif key.from_ == "package_dir":
-            a.package_dir[key.extra_info.value] = key.to_
-except Exception as e:
-    pass
-print("packages: {}".format(a.packages))
-print("namespace_packages: {}".format(a.namespace_packages))
-print("py_modules: {}".format(a.py_modules))
-print("package_dir: {}".format(a.package_dir))
-print("package_arg: {}".format(a.packages_arg))
-print("namespace_packages_arg: {}".format(a.namespace_packages_arg))
+# try:
+#     tdpes = a.end_dataflow
+#     for key in tdpes:
+#         if key.from_ == "packages":
+#             a.packages.append(key.to_)
+#         elif key.from_ == "namespace_packages":
+#             a.namespace_packages.append(key.to_)
+#         elif key.from_ == "py_modules":
+#             a.py_modules.append(key.to_)
+#         elif key.from_ == "package_dir":
+#             a.package_dir[key.extra_info.value] = key.to_
+# except Exception as e:
+#     pass
+# print("packages: {}".format(a.packages))
+# print("namespace_packages: {}".format(a.namespace_packages))
+# print("py_modules: {}".format(a.py_modules))
+# print("package_dir: {}".format(a.package_dir))
+# print("package_arg: {}".format(a.packages_arg))
+# print("namespace_packages_arg: {}".format(a.namespace_packages_arg))
