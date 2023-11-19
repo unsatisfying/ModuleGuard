@@ -1,8 +1,10 @@
 requests
 rarfile
-tarfile
-zipfile
 toml
-
+packaging
+setuptools
 resolvelib
 astunparse==1.6.3
+peewee
+psycopg2-binary
+pkginfo

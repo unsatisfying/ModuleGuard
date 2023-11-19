@@ -18,8 +18,8 @@ from typing import (
 from pip._vendor.resolvelib.structs import DirectedGraph
 from resolvelib import BaseReporter, Resolver
 import resolvelib
-from extras_provider import ExtrasProvider
-from sqlclass import *
+from .extras_provider import ExtrasProvider
+from .sqlclass import *
 from pip._vendor.packaging.requirements import Requirement
 from pip._vendor.packaging.specifiers import SpecifierSet
 from pip._vendor.packaging.version import Version, LegacyVersion
@@ -31,14 +31,6 @@ import functools
 import math
 import copy
 PYTHON_VERSION = str(Version(python_version()))
-
-# req = Requirement('pydantic!=1.7,!=1.7.1,!=1.7.2,!=1.7.3,!=1.8,!=1.8.1,<2.0.0,>=1.6.2')
-# ver1 = Version("6.0")
-# ver2 = Version("6.0b1")
-# req = Requirement('pydantic(>6.0b1)')
-# for spec in req.specifier:
-#     oper = spec._get_operator(spec.operator)
-#     print(oper(ver1,spec.version))
 
 
 def _has_route_to_root(criteria, key, all_keys, connected):
@@ -202,21 +194,6 @@ class PyPIProvider(ExtrasProvider):
 
     def get_preference(self, identifier, resolutions, candidates, information, backtrack_causes):
         criterion = list(information[identifier])
-        # return sum(1 for _ in candidates[identifier])
-    # def get_preference(  # type: ignore
-    #     self,
-    #     identifier: str,
-    #     resolutions: Mapping[str, Candidate],
-    #     candidates: Mapping[str, Iterator[Candidate]],
-    #     information: Mapping[str, Iterable["PreferenceInformation"]],
-    #     backtrack_causes: Sequence["PreferenceInformation"],
-    # ) -> "Preference":
-    #     """Produce a sort key for given requirement based on preference.
-
-    #     The lower the return value is, the more preferred this group of
-    #     arguments is.
-
-    #     Currently pip considers the followings in order:
 
     #     * Prefer if any of the known requirements is "direct", e.g. points to an
     #       explicit URL.
@@ -256,19 +233,7 @@ class PyPIProvider(ExtrasProvider):
         self._known_depths[identifier] = inferred_depth
 
         requested_order = self._user_requested.get(identifier, math.inf)
-        # HACK: Setuptools have a very long and solid backward compatibility
-        # track record, and extremely few projects would request a narrow,
-        # non-recent version range of it since that would break a lot things.
-        # (Most projects specify it only to request for an installer feature,
-        # which does not work, but that's another topic.) Intentionally
-        # delaying Setuptools helps reduce branches the resolver has to check.
-        # This serves as a temporary fix for issues like "apache-airflow[all]"
-        # while we work on "proper" branch pruning techniques.
         delay_this = identifier == "setuptools"
-
-        # Prefer the causes of backtracking on the assumption that the problem
-        # resolving the dependency tree is related to the failures that caused
-        # the backtracking
 
         return (
             delay_this,
@@ -373,13 +338,6 @@ def display_resolution(result):
     vpin = {}
     if '<Python from Requires-Python>' in graph._vertices:
         graph.remove('<Python from Requires-Python>')
-    # if '<Python from Requires-Python>' in vnode:
-    #     vnode.remove('<Python from Requires-Python>')
-    #     vedge.pop('<Python from Requires-Python>')
-    #     s = result.graph._backwards['<Python from Requires-Python>']
-    #     for a in s:
-    #         anode = a
-    #     vedge[anode].remove('<Python from Requires-Python>')
     for node in graph._vertices:
         if node != None:
             vpin[node] = str(result.mapping[node].version)

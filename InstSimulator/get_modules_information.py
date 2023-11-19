@@ -5,12 +5,10 @@ import rarfile
 import tarfile
 import zipfile
 from packaging.utils import canonicalize_name
-from file_node_struct import Tree, Node
-from setup_parse_path import DepsVisitor
+from .file_node_struct import Tree, Node
+from .setup_parse_path import DepsVisitor
 import configparser
 import toml
-import sys
-import argparse
 from pip._internal.models.wheel import Wheel
 
 # file format parser
@@ -52,7 +50,7 @@ def _get_archive(fqn):
     return archive, names, read_file, extract_file
 
 #parse setup.py
-def parse_setup_file(setup_file_path):
+def parse_setup_file_path(setup_file_path):
     try:
         ast_parse_setup = DepsVisitor(setup_file_path)
 
@@ -79,7 +77,7 @@ def parse_setup_file(setup_file_path):
 
 # parse setup.cfg
 # refference https://setuptools.pypa.io/en/latest/userguide/declarative_config.html
-def parse_setup_cfg_file(content):
+def parse_setup_cfg_file_path(content):
     packages_arg = {}
     namespace_packages_arg = {}
     try:
@@ -137,7 +135,7 @@ def parse_setup_cfg_file(content):
 
 # parse pyproject.toml 
 # refference https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
-def parse_pyproject_toml_file(content):
+def parse_pyproject_toml_file_path(content):
     packages_arg = {}
     namespace_packages_arg = {}
     try:
@@ -200,7 +198,7 @@ def get_modules_information_from_name_version(package_name, version):
     if len(files) == 0:
         print(f"Failed to find any files for {package_name} {version}")
         return
-    # 按照bdist_wheel, bdist_egg, sdist的顺序进行排序
+    # bdist_wheel, bdist_egg, sdist order
     def get_suffix_order(file_name):
         if file_name.endswith(".whl"):
             return 1
@@ -248,8 +246,6 @@ def get_modules_information_from_name_version(package_name, version):
     return res
 
         
-
-
 def get_modules_information_from_package(file_path):
         if not file_path.endswith((".zip", ".tar.gz", ".whl", ".egg")):
             raise Exception(f"Unsupported file type: {file_path}")
@@ -349,19 +345,19 @@ def get_modules_information_from_package(file_path):
                         with open(setup_file_path, "wb") as f:
                             f.write(read_file(name))
                         try:
-                            parsed_args = parse_setup_file(setup_file_path)
+                            parsed_args = parse_setup_file_path(setup_file_path)
                         except:
                             parsed_args = {}
 
                 elif name.endswith("{}-{}/setup.cfg".format(file_package_name, file_package_version)):
                     try:
-                        parsed_args = parse_setup_cfg_file(read_file(name).decode("utf-8", errors="ignore"))
+                        parsed_args = parse_setup_cfg_file_path(read_file(name).decode("utf-8", errors="ignore"))
                     except:
                         parsed_args = {}
 
                 elif name.endswith("{}-{}/pyproject.toml".format(file_package_name, file_package_version)):
                     try:
-                        parsed_args = parse_pyproject_toml_file(read_file(name).decode("utf-8", errors="ignore"))
+                        parsed_args = parse_pyproject_toml_file_path(read_file(name).decode("utf-8", errors="ignore"))
                     except:
                         parsed_args = {}
             # get all modules
@@ -536,30 +532,78 @@ def get_modules_information_from_package(file_path):
             print(f"Unsupported file type: {file_name}")
             return
 
-def main(args):
-    if args.local:
-        path = args.local
-        if os.path.exists(path):
-            print(get_modules_information_from_package(path))
+def get_modules_information_from_dirs(dirs_root):
+    all_path = []
+    for root, dirs, files in os.walk(dirs_root):
+        for file in files:
+            if file.endswith((".py")):
+                file_path = os.path.join(root, file)
+                all_path.append(os.path.relpath(file_path, dirs_root))
 
-    elif args.remote:
-        package = args.remote
-        package_version = package.split("==")
-        print(get_modules_information_from_name_version(package_version[0], package_version[1]))
+    files = ["setup.py", "setup.cfg", "pyproject.toml"]
+    for i in range(len(files)):
+        conf_file = os.path.join(dirs_root, files[i])
+        if not os.path.exists(conf_file):
+            continue
 
-    else:
-        print("Please specify a local path or a remote package name.")
+        if files[i] == "setup.py":
+            parsed_args = parse_setup_file_path(conf_file)
+        elif files[i] == "setup.cfg":
+            parsed_args = parse_setup_cfg_file_path(conf_file)
+        elif files[i] == "pyproject.toml":
+            parsed_args = parse_pyproject_toml_file_path(conf_file)
+        else:
+            return all_path
+        
+        if parsed_args != {}: 
+            break
 
     
+    
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Analyze PyPI package from local path or remote address.")
+    root_tree = Tree(all_path)
+    
+    root_child = []
+    where = None
+    exclude = None
+    include = None
+    if parsed_args["packages"] == "find_packages":
+        find_packages_args = parsed_args["packages_arg"]
+        if 'where' in find_packages_args:
+            where = find_packages_args['where']
+        if 'exclude' in find_packages_args:
+            exclude = find_packages_args['exclude']
+        if 'include' in find_packages_args:
+            include = find_packages_args['include']
+        root_child += root_tree.find_packages(where, include, exclude)
 
-    # 添加一个互斥组，包含两个选项，-l或--local，-r或--remote
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("-l", "--local", help="local path of requests package")
-    group.add_argument("-r", "--remote", help="remote package name of requests")
+    elif parsed_args["packages"] == "find_namespace_packages":
+        find__namespace_packages_args = parsed_args["namespace_packages_arg"]
+        if 'where' in find__namespace_packages_args:
+            where = find__namespace_packages_args['where']
+        if 'exclude' in find__namespace_packages_args:
+            exclude = find__namespace_packages_args['exclude']
+        if 'include' in find__namespace_packages_args:
+            include = find__namespace_packages_args['include']
+        root_child += root_tree.find_namespace_packages(where, include, exclude)
 
-    # 解析命令行参数，传入main函数
-    args = parser.parse_args()
-    main(args)
+    elif isinstance(parsed_args["packages"], list):
+        root_child += root_tree.get_packages(parsed_args["package_dir"], parsed_args["packages"])
+
+    # solve py_modules
+
+    root_child += root_tree.get_py_modules(parsed_args["package_dir"], parsed_args["py_modules"])
+
+    # solve namespace_packages
+    root_tree.root.children = root_child
+
+    for namespace in parsed_args["namespace_packages"]:
+        namespace_node = root_tree.get_node_from_absstr_leaf("{}/__init__".format(namespace))
+        if namespace_node:
+            namespace_node.parent.remove_child(namespace_node)
+    
+    res = root_tree.get_tree_path()
+    return res
+
+
+
