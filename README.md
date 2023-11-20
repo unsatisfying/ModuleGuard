@@ -2,7 +2,7 @@
 This project provides a tool to detect module conflicts, which consists of two parts: InstSimulator and EnvResolver.
 * **InstSimulator**: It is a tool to statically analyze the module path of a third-party package installed. Its core idea is to use a file tree to simulator the execution of Python configuration code.
 
-* **EnvResolver**: It is a tool for analyzing direct dependencies and dependency graphs. It uses the pip parsing framework `resolvelib`` and is optimized for speedup. Therefore, the accuracy and the efficiency are higher than other tools.
+* **EnvResolver**: It is a tool for analyzing direct dependencies and dependency graphs. It uses the pip parsing framework `resolvelib` and is optimized for speedup. Therefore, the accuracy and the efficiency are higher than other tools.
 
 ## Project Struct
 ```bash
