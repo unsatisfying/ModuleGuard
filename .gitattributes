@@ -1,3 +1,4 @@
 *.csv filter=lfs diff=lfs merge=lfs -text
 __pycache__/*
 */__pycache__/*
+*.xml filter=lfs diff=lfs merge=lfs -text
